@@ -18,6 +18,8 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'email_verified_at',
+        // Track how many correct answers the user has given
+        'correct_answers',
     ];
 
     /**
@@ -40,6 +42,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'correct_answers' => 'integer',
         ];
     }
 }

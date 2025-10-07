@@ -33,3 +33,13 @@ export const logout = async (token: string) => {
     }
   )
 }
+
+// Example API call to increment correct answers when a user answers correctly
+export const incrementCorrectAnswers = async (token: string) => {
+  const res = await api.post(
+    '/quiz/correct',
+    {},
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+  return res.data
+}

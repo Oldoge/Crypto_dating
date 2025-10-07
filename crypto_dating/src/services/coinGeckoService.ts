@@ -14,7 +14,7 @@ interface CoinGeckoMarketData {
 
 export class CoinGeckoService {
   private static instance: CoinGeckoService;
-  private pollingInterval: NodeJS.Timeout | null = null;
+  private pollingInterval: ReturnType<typeof setInterval> | null = null;
   private callbacks: ((coins: CryptoCurrency[]) => void)[] = [];
   private lastSuccessfulFetch: CryptoCurrency[] = [];
 
@@ -29,7 +29,7 @@ export class CoinGeckoService {
 
   async fetchTopCoins(): Promise<CryptoCurrency[]> {
     try {
-      // Use CoinGecko free API endpoint
+      // Used CoinGecko free API endpoint
       const response = await fetch(
         'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h'
       );
@@ -39,12 +39,50 @@ export class CoinGeckoService {
       }
 
       const data: CoinGeckoMarketData[] = await response.json();
-      
-      // Filter out stablecoins and select top 20 non-stablecoins
-      const stablecoins = ['usdt', 'usdc', 'busd', 'dai', 'frax', 'tusd', 'usdp', 'usdd', 'fei', 'lusd'];
-      const filteredData = data.filter(coin => !stablecoins.includes(coin.id));
-      
-      const coins: CryptoCurrency[] = filteredData.slice(0, 20).map((coin, index) => ({
+
+      // Filter out stablecoins (expanded list + symbol heuristics)
+      const stableIdSet = new Set<string>([
+        // USD
+        'tether', // USDT
+        'usd-coin', // USDC
+        'binance-usd', // BUSD
+        'true-usd', // TUSD
+        'paxos-standard', // USDP old
+        'pax-dollar', // USDP new
+        'dai',
+        'frax',
+        'usdd',
+        'fei-usd',
+        'liquity-usd', // LUSD
+        'crvusd',
+        'usds', // USDS
+        'BSC-USD', // USDB
+        'figr_heloc', // FIGR_HELOC
+        'first-digital-usd', // FDUSD
+        'paypal-usd', // PYUSD
+        'ethena-usde', // USDE
+        'mountain-protocol-usdm', // USDM
+        'usdk', 'usdx', 'usdn', // variants
+        // UST
+        'terrausd', 'terrausd-classic',
+        // EUR
+        'stasis-eurs', // EURS
+        'euro-coin', // EURC
+        'tether-eurt', // EURT
+        // Others (fiat-pegged)
+        'xsgd',
+      ]);
+      const stableSymbolRegex = /^(usdt|figr_heloc|BSC-USD|usds|usdc|busd|tusd|usdp|gusd|lusd|usdd|usde|usdm|usdb|usd|pyusd|fdusd|crvusd|dai|frax|ust|ustc|eurt|eurs|eurc|susd)$/i;
+
+      const filteredData = data.filter((coin) => {
+        const id = coin.id.toLowerCase();
+        const sym = coin.symbol.toLowerCase();
+        if (stableIdSet.has(id)) return false; // exclude
+        if (stableSymbolRegex.test(sym)) return false; // exclude
+        return true; // keep
+      });
+
+      const coins: CryptoCurrency[] = filteredData.slice(0, 50).map((coin) => ({
         id: coin.id,
         symbol: coin.symbol.toUpperCase(),
         name: coin.name,
