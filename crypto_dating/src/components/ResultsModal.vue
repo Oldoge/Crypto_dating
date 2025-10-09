@@ -171,20 +171,15 @@ const formatDate = (timestamp: Date): string => {
 const getTimeRemaining = (timestamp: Date): string => {
   const now = new Date();
   const predictionTime = new Date(timestamp);
-  const oneHourLater = new Date(predictionTime.getTime() + 60 * 60 * 1000);
-  const remaining = oneHourLater.getTime() - now.getTime();
-  
+  const fiveMinutesLater = new Date(predictionTime.getTime() + 5 * 60 * 1000);
+  const remaining = fiveMinutesLater.getTime() - now.getTime();
+
   if (remaining <= 0) {
     return 'Results available soon';
   }
-  
+
   const minutes = Math.floor(remaining / (1000 * 60));
-  if (minutes < 60) {
-    return `${minutes}m remaining`;
-  }
-  
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return `${hours}h ${remainingMinutes}m remaining`;
+  const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+  return `${minutes}m ${seconds}s remaining`;
 };
 </script>

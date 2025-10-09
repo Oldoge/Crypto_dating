@@ -16,6 +16,8 @@ export interface SwipeAction {
   action: 'like' | 'dislike';
   initialPrice: number;
   timestamp: Date;
+  // client-side generated id to correlate with backend prediction row
+  clientId?: string;
   resultChecked?: boolean;
   actualOutcome?: 'up' | 'down';
   wasCorrect?: boolean;

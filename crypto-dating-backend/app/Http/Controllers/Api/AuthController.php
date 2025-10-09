@@ -17,7 +17,7 @@ class AuthController extends Controller
         'password' => 'required|string|min:6|confirmed',
     ]);
 
-    // Если имя не передано — генерируем автоматически
+    // we don't use that
     $name = $validated['name'] ?? 'User_' . rand(1000, 9999);
 
     $user = User::create([

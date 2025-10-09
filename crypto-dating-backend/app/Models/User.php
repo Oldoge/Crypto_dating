@@ -45,4 +45,12 @@ class User extends Authenticatable
             'correct_answers' => 'integer',
         ];
     }
+
+    /**
+     * User predictions relationship
+     */
+    public function predictions()
+    {
+        return $this->hasMany(Prediction::class);
+    }
 }

@@ -138,7 +138,9 @@ import CryptoCard from './components/CryptoCard.vue';
 import SwipeButtons from './components/SwipeButtons.vue';
 import AuthModal from './components/AuthModal.vue';
 import ResultsModal from './components/ResultsModal.vue';
-import { login as apiLogin, register as apiRegister, logout as apiLogout, getUser as apiGetUser } from './api/auth';
+import { login as apiLogin, register as apiRegister, logout as apiLogout, getUser as apiGetUser, incrementCorrectAnswers } from './api/auth';
+import { createPrediction, bulkImportPredictions } from './api/predictions';
+import { readPredictionsFromCookie, writePredictionsToCookie, clearPredictionsCookie } from './utils/predictionsCookie';
 
 const currentUser = ref<User | null>(null);
 const authToken = ref<string | null>(null);
@@ -168,8 +170,8 @@ const pendingPredictions = computed(() => {
 const reloadPage = () => {
   window.location.reload();
 };
-
-const handleSwipe = (action: 'like' | 'dislike') => {
+ // Handle swipe action
+const handleSwipe = async (action: 'like' | 'dislike') => {
   if (!currentCrypto.value || isTransitioning.value) return;
   
   isTransitioning.value = true;
@@ -180,7 +182,8 @@ const handleSwipe = (action: 'like' | 'dislike') => {
     coinSymbol: currentCrypto.value.symbol,
     action,
     initialPrice: currentCrypto.value.currentPrice,
-    timestamp: new Date()
+    timestamp: new Date(),
+    clientId: crypto.randomUUID(),
   };
   
   swipeHistory.value.push(swipeAction);
@@ -189,6 +192,41 @@ const handleSwipe = (action: 'like' | 'dislike') => {
     currentUser.value.totalSwipes++;
     currentUser.value.predictions.push(swipeAction);
     saveUserToStorage();
+    // Persist to backend when authenticated
+    try {
+      const token = authToken.value || localStorage.getItem('cryptoTinderToken') || undefined;
+      const payload = {
+        client_id: swipeAction.clientId,
+        type: 'coin',
+        payload: {
+          coinId: swipeAction.coinId,
+          coinName: swipeAction.coinName,
+          coinSymbol: swipeAction.coinSymbol,
+          action: swipeAction.action,
+          initialPrice: swipeAction.initialPrice,
+          timestamp: swipeAction.timestamp,
+        },
+      };
+      await createPrediction(payload, token);
+    } catch (e) {
+      console.error('Failed to persist prediction:', e);
+    }
+  } else {
+    // Anonymous: store in cookie for later sync
+    const existing = readPredictionsFromCookie();
+    existing.push({
+      client_id: swipeAction.clientId,
+      type: 'coin',
+      payload: {
+        coinId: swipeAction.coinId,
+        coinName: swipeAction.coinName,
+        coinSymbol: swipeAction.coinSymbol,
+        action: swipeAction.action,
+        initialPrice: swipeAction.initialPrice,
+        timestamp: swipeAction.timestamp,
+      },
+    });
+    writePredictionsToCookie(existing);
   }
   
   setTimeout(() => {
@@ -201,7 +239,7 @@ const handleLogin = async (credentials: { email: string; password: string }) => 
   try {
     const { token, user } = await apiLogin(credentials.email, credentials.password);
     authToken.value = token;
-    // Map backend user to frontend User shape
+    // Map backend user to frontend User type
     const mappedUser: User = {
       id: String(user.id),
       email: user.email,
@@ -213,6 +251,17 @@ const handleLogin = async (credentials: { email: string; password: string }) => 
     currentUser.value = mappedUser;
     showAuthModal.value = false;
     persistAuth();
+
+    // Sync any predictions from cookie to backend
+    try {
+      const cookieItems = readPredictionsFromCookie();
+      if (cookieItems.length > 0) {
+        await bulkImportPredictions(cookieItems, token);
+        clearPredictionsCookie();
+      }
+    } catch (e) {
+      console.error('Failed to bulk sync predictions after login:', e);
+    }
   } catch (e: any) {
     alert(e?.response?.data?.message || 'Login failed');
   }
@@ -276,12 +325,13 @@ const persistAuth = () => {
 };
 
 const saveUserToStorage = persistAuth;
-
+// Clear auth data from localStorage
 const clearAuth = () => {
   localStorage.removeItem('cryptoTinderUser');
   localStorage.removeItem('cryptoTinderToken');
 };
 
+// Load user from localStorage on mount
 const loadUserFromStorage = async () => {
   const savedUser = localStorage.getItem('cryptoTinderUser');
   const savedToken = localStorage.getItem('cryptoTinderToken');
@@ -291,7 +341,7 @@ const loadUserFromStorage = async () => {
     if (!user.predictions) user.predictions = [];
     currentUser.value = user;
   }
-  // If we have a token, try to refresh user from backend
+  // Validate token by fetching user data
   if (authToken.value) {
     try {
       const backendUser = await apiGetUser(authToken.value);
@@ -319,13 +369,13 @@ const loadUserFromStorage = async () => {
 
 const checkPredictionResults = async () => {
   if (!currentUser.value) return;
-  
+  // Check predictions older than 5 minutes that haven't been checked yet
   const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
   
-  // Find predictions that are over 1 hour old and haven't been checked
+  // Find predictions that are over 5 minutes old and haven't been checked
   const predictionsToCheck = currentUser.value.predictions.filter(
-    p => !p.resultChecked && new Date(p.timestamp) <= oneHourAgo
+    p => !p.resultChecked && new Date(p.timestamp) <= fiveMinutesAgo
   );
   
   if (predictionsToCheck.length === 0) return;
@@ -340,7 +390,7 @@ const checkPredictionResults = async () => {
     if (response.ok) {
       const currentPrices = await response.json();
       
-      predictionsToCheck.forEach(prediction => {
+      predictionsToCheck.forEach(async (prediction) => {
         const currentPrice = currentPrices[prediction.coinId]?.usd;
         if (currentPrice) {
           const priceChange = currentPrice - prediction.initialPrice;
@@ -354,6 +404,13 @@ const checkPredictionResults = async () => {
           
           if (wasCorrect) {
             currentUser.value!.correctPredictions++;
+            // Inform backend to increment correct answers
+            try {
+              const token = authToken.value || localStorage.getItem('cryptoTinderToken') || undefined;
+              if (token) await incrementCorrectAnswers(token);
+            } catch (e) {
+              console.error('Failed to increment correct answers in backend:', e);
+            }
           }
         }
       });
