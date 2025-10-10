@@ -1,5 +1,25 @@
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
+## Crypto Dating — Backend (Laravel API)
+
+This is the Laravel 12 API powering the Crypto Dating app. It issues Sanctum bearer tokens on login/registration and persists user predictions.
+
+Quick start (dev):
+
+```bash
+composer install
+cp .env.example .env
+php artisan key:generate
+# Use SQLite in .env
+# DB_CONNECTION=sqlite
+# DB_DATABASE=database/database.sqlite
+touch database/database.sqlite
+php artisan migrate
+php artisan serve
+```
+
+Main endpoints: see the root README for a summary (`/api/register`, `/api/login`, `/api/user`, `/api/predictions`, etc.).
+
 <p align="center">
 <a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
