@@ -176,7 +176,3 @@ Backend (`.env`)
 	- Make sure the DB file exists: `database/database.sqlite`.
 	- Verify `.env` uses `DB_CONNECTION=sqlite` and correct `DB_DATABASE` path.
 
-## License
-
-This project is provided as-is without a specified license. If you plan to publish or distribute, add a suitable license file.
-
