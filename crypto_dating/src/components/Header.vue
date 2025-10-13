@@ -10,12 +10,19 @@
           </h1>
         </div>
 
-        <!-- User Info / Auth Button -->
-        <div v-if="user" class="flex items-center space-x-4">
+        <!-- User Info / Auth Button -->        <div v-if="user" class="flex items-center space-x-4">
           <div class="text-right">
-            <p class="text-sm font-medium text-gray-900">{{ user.username }}</p>
-            <p class="text-xs text-gray-500">
+            <p class="text-sm font-medium text-gray-900">{{ user.username }}</p>            <p 
+              class="text-xs cursor-pointer hover:text-blue-600 hover:underline transition-all duration-200 relative"
+              :class="props.hasNewResults ? 'text-blue-600 font-medium' : 'text-gray-500'"
+              @click="$emit('showResults')"
+              title="Click to see prediction results"
+            >
               {{ user.correctPredictions }}/{{ user.totalSwipes }} correct
+              <span 
+                v-if="props.hasNewResults" 
+                class="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"
+              ></span>
             </p>
           </div>
           <button
@@ -50,9 +57,10 @@ import type { User } from '../types/crypto';
 
 interface Props {
   user?: User | null;
+  hasNewResults?: boolean;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 defineEmits<{
   showAuth: [];
   showResults: [];

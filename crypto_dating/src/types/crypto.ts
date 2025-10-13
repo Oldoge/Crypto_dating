@@ -19,6 +19,7 @@ export interface SwipeAction {
   // client-side generated id to correlate with backend prediction row
   clientId?: string;
   resultChecked?: boolean;
+  resultConfirmedAt?: Date;
   actualOutcome?: 'up' | 'down';
   wasCorrect?: boolean;
 }

@@ -1,11 +1,11 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
-    <!-- Header -->
-    <Header
+    <!-- Header -->    <Header
       :user="currentUser"
+      :has-new-results="hasNewResults"
       @show-auth="showAuthModal = true"
       @logout="handleLogout"
-      @show-results="showResultsModal = true"
+      @show-results="showResultsModal = true; hasNewResults = false; newResultsIds = []"
     />
 
     <!-- Main Content -->
@@ -85,9 +85,11 @@
                 <p class="text-2xl font-bold text-purple-600">{{ accuracyPercentage }}%</p>
                 <p class="text-sm text-gray-600">Accuracy</p>
               </div>
-            </div>
-            <div v-if="pendingPredictions > 0" class="mt-4 pt-4 border-t border-gray-200">
-              <p class="text-sm text-gray-600">
+            </div>            <div v-if="pendingPredictions > 0 || hasNewResults" class="mt-4 pt-4 border-t border-gray-200">
+              <p v-if="hasNewResults" class="text-sm text-blue-600 font-medium mb-2 cursor-pointer hover:underline" @click="showResultsModal = true; hasNewResults = false; newResultsIds = []">
+                🎉 New prediction results are available! Click to view
+              </p>
+              <p v-if="pendingPredictions > 0" class="text-sm text-gray-600">
                 {{ pendingPredictions }} predictions pending results
               </p>
             </div>
@@ -117,13 +119,12 @@
       @close="showAuthModal = false"
       @login="handleLogin"
       @register="handleRegister"
-    />
-
-    <!-- Results Modal -->
-    <ResultsModal
+    />    <!-- Results Modal -->    <ResultsModal
       :is-open="showResultsModal"
       :predictions="currentUser?.predictions || []"
-      @close="showResultsModal = false"
+      :new-results-ids="newResultsIds"
+      @close="showResultsModal = false; newResultsIds = []"
+      @view-all-results="newResultsIds = []"
     />
   </div>
 </template>
@@ -149,6 +150,8 @@ const showResultsModal = ref(false);
 const availableCryptos = ref<CryptoCurrency[]>([]);
 const swipeHistory = ref<SwipeAction[]>([]);
 const isTransitioning = ref(false);
+const hasNewResults = ref(false);
+const newResultsIds = ref<string[]>([]);
 
 // Use CoinGecko API
 const { coins, isLoading, error } = useCoinGecko();
@@ -389,6 +392,7 @@ const checkPredictionResults = async () => {
     
     if (response.ok) {
       const currentPrices = await response.json();
+        const newlyConfirmedIds: string[] = [];
       
       predictionsToCheck.forEach(async (prediction) => {
         const currentPrice = currentPrices[prediction.coinId]?.usd;
@@ -399,8 +403,13 @@ const checkPredictionResults = async () => {
           const wasCorrect = actualOutcome === predictedOutcome;
           
           prediction.resultChecked = true;
+          prediction.resultConfirmedAt = new Date();
           prediction.actualOutcome = actualOutcome;
           prediction.wasCorrect = wasCorrect;
+          
+          // Track this as a newly confirmed result
+          const predictionId = prediction.clientId || `${prediction.coinId}-${prediction.timestamp.getTime()}`;
+          newlyConfirmedIds.push(predictionId);
           
           if (wasCorrect) {
             currentUser.value!.correctPredictions++;
@@ -414,6 +423,11 @@ const checkPredictionResults = async () => {
           }
         }
       });
+        // Set flag if any predictions were newly confirmed
+      if (newlyConfirmedIds.length > 0) {
+        hasNewResults.value = true;
+        newResultsIds.value = newlyConfirmedIds;
+      }
       
       saveUserToStorage();
     }
@@ -447,6 +461,14 @@ onMounted(() => {
   // Check prediction results every 5 minutes
   const resultCheckInterval = setInterval(checkPredictionResults, 5 * 60 * 1000);
   
+  // Check for results when user returns to the tab
+  const handleVisibilityChange = () => {
+    if (!document.hidden && currentUser.value) {
+      checkPredictionResults();
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  
   // Watch for coins updates
   const updateAvailableCoins = () => {
     if (coins.value.length > 0 && availableCryptos.value.length === 0) {
@@ -469,6 +491,7 @@ onMounted(() => {
   return () => {
     clearInterval(interval);
     clearInterval(resultCheckInterval);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
   };
 });
 </script>
