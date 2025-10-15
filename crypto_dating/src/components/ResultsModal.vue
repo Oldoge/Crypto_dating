@@ -138,7 +138,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { X, TrendingUp } from 'lucide-vue-next';
+import { X, TrendingUp } from '../icons';
 import type { SwipeAction } from '../types/crypto';
 
 interface Props {

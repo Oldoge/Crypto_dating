@@ -9,6 +9,15 @@ use App\Http\Controllers\Api\PredictionController;
 
 Route::get('/ping', fn() => response()->json(['message' => 'pong']));
 
+// Handle preflight OPTIONS requests
+Route::options('{any}', function() {
+    return response('', 200)
+        ->header('Access-Control-Allow-Origin', '*')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Credentials', 'true');
+})->where('any', '.*');
+
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 

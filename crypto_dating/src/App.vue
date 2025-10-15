@@ -131,7 +131,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { TrendingUp } from 'lucide-vue-next';
+import { TrendingUp } from './icons';
 import type { CryptoCurrency, User, SwipeAction } from './types/crypto';
 import { useCoinGecko } from './composables/useCoinGecko';
 import Header from './components/Header.vue';

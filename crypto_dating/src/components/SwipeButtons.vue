@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { X, Heart } from 'lucide-vue-next';
+import { X, Heart } from '../icons';
 
 interface Props {
   disabled?: boolean;
