@@ -57,6 +57,12 @@
               </div>
               <div class="border-t border-gray-100">
                 <button
+                  @click="goProfile"
+                  class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
+                >
+                  Profile
+                </button>
+                <button
                   @click="openSettings"
                   class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
                 >
@@ -104,6 +110,7 @@ const emit = defineEmits<{
   showResults: [];
   logout: [];
   saveSettings: [{ username?: string; email?: string; currentPassword?: string; newPassword?: string; newPasswordConfirm?: string }];
+  showProfile: [];
 }>();
 
 const menuOpen = ref(false);
@@ -114,6 +121,10 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 const closeMenu = () => (menuOpen.value = false);
 const openSettings = () => {
   settingsOpen.value = true;
+  closeMenu();
+};
+const goProfile = () => {
+  emit('showProfile');
   closeMenu();
 };
 

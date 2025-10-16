@@ -8,6 +8,7 @@
       @logout="handleLogout"
       @show-results="showResultsModal = true; hasNewResults = false; newResultsIds = []"
       @save-settings="handleSaveSettings"
+      @show-profile="goProfile"
     />
 
   <!-- Main Content -->
@@ -217,6 +218,9 @@
       </div>
     </Transition>
 
+    <!-- Profile Route Outlet -->
+    <RouterView />
+
     <!-- Auth Modal -->
     <AuthModal
       :is-open="showAuthModal"
@@ -236,6 +240,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRouter, RouterView } from 'vue-router';
 import { TrendingUp } from './icons';
 import type { CryptoCurrency, User, SwipeAction } from './types/crypto';
 import { useCoinGecko } from './composables/useCoinGecko';
@@ -249,6 +254,7 @@ import { createPrediction, bulkImportPredictions } from './api/predictions';
 import { readPredictionsFromCookie, writePredictionsToCookie, clearPredictionsCookie } from './utils/predictionsCookie';
 
 const currentUser = ref<User | null>(null);
+const router = useRouter();
 const authToken = ref<string | null>(null);
 const showAuthModal = ref(false);
 const welcomeBack = ref(false);
@@ -467,6 +473,11 @@ const saveUserToStorage = persistAuth;
 const clearAuth = () => {
   localStorage.removeItem('cryptoTinderUser');
   localStorage.removeItem('cryptoTinderToken');
+};
+
+// Navigation helpers
+const goProfile = () => {
+  router.push({ name: 'profile' });
 };
 
 // Load user from localStorage on mount
