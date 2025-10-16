@@ -3,12 +3,14 @@
     <!-- Header -->    <Header
       :user="currentUser"
       :has-new-results="hasNewResults"
+      :welcome-back="welcomeBack"
       @show-auth="showAuthModal = true"
       @logout="handleLogout"
       @show-results="showResultsModal = true; hasNewResults = false; newResultsIds = []"
+      @save-settings="handleSaveSettings"
     />
 
-    <!-- Main Content -->
+  <!-- Main Content -->
     <div class="container mx-auto px-4 py-8">
       <!-- Loading State -->
       <div v-if="isLoading" class="flex flex-col items-center justify-center py-16">
@@ -66,7 +68,7 @@
         <SwipeButtons
           @like="handleSwipe('like')"
           @dislike="handleSwipe('dislike')"
-          :disabled="isTransitioning"
+          :disabled="isTransitioning || isLocked"
         />
 
         <!-- Stats -->
@@ -113,6 +115,108 @@
       </div>
     </div>
 
+    <!-- Right-side floating button to open training selection -->
+    <button
+      class="fixed top-1/2 -translate-y-1/2 right-4 z-40 bg-white/90 backdrop-blur border border-gray-200 shadow-lg hover:shadow-xl px-4 py-2 rounded-full text-sm font-medium text-gray-700 hover:text-gray-900"
+      title="Choose cryptocurrencies to train"
+      @click="openFilterDrawer"
+    >
+      Choose cryptos
+    </button>
+
+    <!-- Sliding Drawer: choose cryptocurrencies to train -->
+    <Transition name="drawer">
+      <div v-if="showFilterDrawer" class="fixed inset-0 z-50 flex">
+        <!-- Backdrop -->
+        <div class="flex-1 bg-black/40" @click="closeFilterDrawer"></div>
+        <!-- Panel -->
+        <div class="w-80 max-w-full bg-white h-full shadow-2xl border-l border-gray-200 p-4 overflow-y-auto">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-900">Train with specific cryptos</h3>
+              <p class="text-sm text-gray-500">Select at least 5 cryptocurrencies</p>
+            </div>
+            <button class="text-gray-400 hover:text-gray-600" @click="closeFilterDrawer">✕</button>
+          </div>
+
+          <div class="mb-3">
+            <input
+              v-model="filterSearch"
+              type="text"
+              placeholder="Search..."
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+            />
+          </div>
+
+          <div class="space-y-1">
+            <label
+              v-for="c in filteredCoinOptions"
+              :key="c.id"
+              class="flex items-center gap-3 px-2 py-2 rounded hover:bg-gray-50 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                class="h-4 w-4"
+                :value="c.id"
+                v-model="selectedIdsTemp"
+              />
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">{{ c.name }}</p>
+                <p class="text-xs text-gray-500 uppercase">{{ c.symbol }}</p>
+              </div>
+            </label>
+          </div>
+
+          <div class="mt-4 flex items-center justify-between">
+            <p class="text-sm" :class="selectedIdsTemp.length < 5 ? 'text-red-600' : 'text-gray-600'">
+              Selected: {{ selectedIdsTemp.length }} / at least 5
+            </p>
+            <div class="flex gap-2">
+              <button @click="clearSelection" class="px-3 py-2 text-sm border rounded-lg text-gray-700">Clear</button>
+              <button
+                @click="confirmSelection"
+                :disabled="selectedIdsTemp.length < 5"
+                class="px-4 py-2 text-sm rounded-lg text-white disabled:opacity-50 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+
+    <!-- Access Gate Overlay -->
+    <Transition name="overlay">
+      <div v-if="isLocked" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/60"></div>
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 text-center modal-panel">
+          <h3 class="text-xl font-semibold text-gray-900 mb-2">Authentication required</h3>
+          <p class="text-gray-600 mb-6">Before using the site, you must first register or log in.</p>
+          <div class="flex items-center justify-center gap-3">
+            <button
+              @click="showAuthModal = true"
+              class="px-5 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-blue-600 text-white font-semibold hover:from-purple-600 hover:to-blue-700"
+            >
+              Sign In / Register
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Selection Complete Notice -->
+    <Transition name="overlay">
+      <div v-if="showSelectionComplete" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40"></div>
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 text-center modal-panel">
+          <h3 class="text-xl font-semibold text-gray-900 mb-2">Well done!</h3>
+          <p class="text-gray-600">You completed your selected set. Refreshing…</p>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Auth Modal -->
     <AuthModal
       :is-open="showAuthModal"
@@ -126,6 +230,7 @@
       @close="showResultsModal = false; newResultsIds = []"
       @view-all-results="newResultsIds = []"
     />
+
   </div>
 </template>
 
@@ -139,19 +244,26 @@ import CryptoCard from './components/CryptoCard.vue';
 import SwipeButtons from './components/SwipeButtons.vue';
 import AuthModal from './components/AuthModal.vue';
 import ResultsModal from './components/ResultsModal.vue';
-import { login as apiLogin, register as apiRegister, logout as apiLogout, getUser as apiGetUser, incrementCorrectAnswers } from './api/auth';
+import { login as apiLogin, register as apiRegister, logout as apiLogout, getUser as apiGetUser, incrementCorrectAnswers, updateProfile } from './api/auth';
 import { createPrediction, bulkImportPredictions } from './api/predictions';
 import { readPredictionsFromCookie, writePredictionsToCookie, clearPredictionsCookie } from './utils/predictionsCookie';
 
 const currentUser = ref<User | null>(null);
 const authToken = ref<string | null>(null);
 const showAuthModal = ref(false);
+const welcomeBack = ref(false);
 const showResultsModal = ref(false);
 const availableCryptos = ref<CryptoCurrency[]>([]);
 const swipeHistory = ref<SwipeAction[]>([]);
 const isTransitioning = ref(false);
 const hasNewResults = ref(false);
 const newResultsIds = ref<string[]>([]);
+// Training selection drawer state
+const showFilterDrawer = ref(false);
+const filterSearch = ref('');
+const selectedIdsTemp = ref<string[]>([]);
+// Selection complete notice
+const showSelectionComplete = ref(false);
 
 // Use CoinGecko API
 const { coins, isLoading, error } = useCoinGecko();
@@ -165,17 +277,38 @@ const accuracyPercentage = computed(() => {
   return Math.round((currentUser.value.correctPredictions / currentUser.value.totalSwipes) * 100);
 });
 
+const isLocked = computed(() => !currentUser.value);
+
 const pendingPredictions = computed(() => {
   if (!currentUser.value) return 0;
   return currentUser.value.predictions.filter(p => !p.resultChecked).length;
 });
 
+const filteredCoinOptions = computed(() => {
+  const q = filterSearch.value.trim().toLowerCase();
+  const list = coins.value || [];
+  if (!q) return list;
+  return list.filter(c =>
+    c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q)
+  );
+});
+
 const reloadPage = () => {
   window.location.reload();
+};
+
+// Storage key for selected cryptos, scoped per user (fallback to anon)
+const selectionStorageKey = () => {
+  const id = currentUser.value?.id;
+  return `cryptoTinderSelectedIds:${id ?? 'anon'}`;
 };
  // Handle swipe action
 const handleSwipe = async (action: 'like' | 'dislike') => {
   if (!currentCrypto.value || isTransitioning.value) return;
+  if (isLocked.value) {
+    showAuthModal.value = true;
+    return;
+  }
   
   isTransitioning.value = true;
   
@@ -214,27 +347,25 @@ const handleSwipe = async (action: 'like' | 'dislike') => {
     } catch (e) {
       console.error('Failed to persist prediction:', e);
     }
-  } else {
-    // Anonymous: store in cookie for later sync
-    const existing = readPredictionsFromCookie();
-    existing.push({
-      client_id: swipeAction.clientId,
-      type: 'coin',
-      payload: {
-        coinId: swipeAction.coinId,
-        coinName: swipeAction.coinName,
-        coinSymbol: swipeAction.coinSymbol,
-        action: swipeAction.action,
-        initialPrice: swipeAction.initialPrice,
-        timestamp: swipeAction.timestamp,
-      },
-    });
-    writePredictionsToCookie(existing);
   }
   
   setTimeout(() => {
     availableCryptos.value.shift();
     isTransitioning.value = false;
+    // If filtered selection is active and deck is finished, show success notice and refresh
+    try {
+      const saved = localStorage.getItem(selectionStorageKey());
+      let selectedIds: string[] = [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) selectedIds = parsed;
+      }
+      const filterActive = selectedIds.length >= 5;
+      if (filterActive && availableCryptos.value.length === 0) {
+        showSelectionComplete.value = true;
+        setTimeout(() => window.location.reload(), 1200);
+      }
+    } catch {}
   }, 300);
 };
 
@@ -292,6 +423,8 @@ const handleRegister = async (data: { email: string; password: string; username:
     currentUser.value = mappedUser;
     showAuthModal.value = false;
     persistAuth();
+    // Clear any previous crypto selection for new account so all cards show by default
+    try { localStorage.removeItem(selectionStorageKey()); } catch {}
   } catch (e: any) {
     const msg = e?.response?.data?.message ||
       (e?.response?.data?.errors ? Object.values(e.response.data.errors).flat().join('\n') : null) ||
@@ -310,6 +443,7 @@ const handleLogout = async () => {
   } finally {
     currentUser.value = null;
     authToken.value = null;
+    welcomeBack.value = false;
     clearAuth();
   }
 };
@@ -317,6 +451,7 @@ const handleLogout = async () => {
 const resetCards = () => {
   availableCryptos.value = [...coins.value];
 };
+
 
 const persistAuth = () => {
   if (currentUser.value) {
@@ -338,7 +473,10 @@ const clearAuth = () => {
 const loadUserFromStorage = async () => {
   const savedUser = localStorage.getItem('cryptoTinderUser');
   const savedToken = localStorage.getItem('cryptoTinderToken');
-  if (savedToken) authToken.value = savedToken;
+  if (savedToken) {
+    authToken.value = savedToken;
+    welcomeBack.value = true;
+  }
   if (savedUser) {
     const user = JSON.parse(savedUser);
     if (!user.predictions) user.predictions = [];
@@ -368,6 +506,37 @@ const loadUserFromStorage = async () => {
   if (currentUser.value) {
     checkPredictionResults();
   }
+};
+
+// Drawer helpers
+const openFilterDrawer = () => {
+  // Prefill selection from saved storage if available
+  const saved = localStorage.getItem(selectionStorageKey());
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) selectedIdsTemp.value = parsed;
+    } catch {}
+  }
+  showFilterDrawer.value = true;
+};
+const closeFilterDrawer = () => {
+  showFilterDrawer.value = false;
+};
+const clearSelection = () => {
+  selectedIdsTemp.value = [];
+  // Remove persisted selection and reset deck to all coins immediately
+  try { localStorage.removeItem(selectionStorageKey()); } catch {}
+  if (coins.value && coins.value.length > 0) {
+    availableCryptos.value = shuffle(coins.value);
+  }
+  closeFilterDrawer();
+};
+const confirmSelection = () => {
+  if (selectedIdsTemp.value.length < 5) return;
+  localStorage.setItem(selectionStorageKey(), JSON.stringify(selectedIdsTemp.value));
+  // Refresh to apply selection as requested
+  window.location.reload();
 };
 
 const checkPredictionResults = async () => {
@@ -472,7 +641,21 @@ onMounted(() => {
   // Watch for coins updates
   const updateAvailableCoins = () => {
     if (coins.value.length > 0 && availableCryptos.value.length === 0) {
-      availableCryptos.value = [...coins.value];
+      const saved = localStorage.getItem(selectionStorageKey());
+      let selectedIds: string[] = [];
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) selectedIds = parsed;
+        } catch {}
+      }
+      let list = [...coins.value];
+      if (selectedIds.length >= 5) {
+        const set = new Set(selectedIds);
+        list = list.filter(c => set.has(c.id));
+      }
+      // Shuffle for randomness
+      availableCryptos.value = shuffle(list);
     }
   };
   
@@ -494,6 +677,42 @@ onMounted(() => {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
   };
 });
+
+// Simple Fisher-Yates shuffle
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Handle settings save from header
+const handleSaveSettings = async (payload: { username?: string; email?: string; currentPassword?: string; newPassword?: string; newPasswordConfirm?: string }) => {
+  if (!authToken.value || !currentUser.value) return;
+  try {
+    const apiPayload: any = {};
+    if (payload.username && payload.username !== currentUser.value.username) apiPayload.name = payload.username;
+    if (payload.email && payload.email !== currentUser.value.email) apiPayload.email = payload.email;
+    if (payload.newPassword) {
+      apiPayload.current_password = payload.currentPassword;
+      apiPayload.new_password = payload.newPassword;
+      apiPayload.new_password_confirmation = payload.newPasswordConfirm;
+    }
+    const updated = await updateProfile(authToken.value, apiPayload);
+    // Update local user state
+    currentUser.value = {
+      ...currentUser.value,
+      email: updated.email ?? currentUser.value.email,
+      username: updated.name ?? currentUser.value.username,
+    } as typeof currentUser.value;
+    persistAuth();
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || (e?.response?.data?.errors ? Object.values(e.response.data.errors).flat().join('\n') : null) || 'Failed to update profile';
+    alert(msg);
+  }
+}
 </script>
 
 <style>
@@ -510,5 +729,51 @@ onMounted(() => {
 .card-leave-to {
   opacity: 0;
   transform: scale(0.8) translateY(-20px);
+}
+</style>
+<style>
+/* Overlay fade */
+.overlay-enter-active,
+.overlay-leave-active {
+  transition: opacity 180ms ease;
+}
+.overlay-enter-from,
+.overlay-leave-to {
+  opacity: 0;
+}
+
+/* Modal panel pop */
+.modal-panel {
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+.overlay-enter-from .modal-panel {
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+}
+.overlay-enter-to .modal-panel {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.overlay-leave-from .modal-panel {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.overlay-leave-to .modal-panel {
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+}
+
+/* Drawer slide from right */
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+.drawer-enter-from > div:last-child,
+.drawer-leave-to > div:last-child {
+  transform: translateX(100%);
+}
+.drawer-enter-from,
+.drawer-leave-to {
+  opacity: 0.99; /* keep nearly opaque to avoid flicker */
 }
 </style>

@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'show']);
+    Route::patch('/profile', [ProfileController::class, 'update']);
 
     // Example quiz route to increment correct answers when an answer is correct
     Route::post('/quiz/correct', [QuizController::class, 'incrementCorrectAnswers']);

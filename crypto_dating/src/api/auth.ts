@@ -43,3 +43,18 @@ export const incrementCorrectAnswers = async (token: string) => {
   )
   return res.data
 }
+
+export interface UpdateProfilePayload {
+  name?: string
+  email?: string
+  current_password?: string
+  new_password?: string
+  new_password_confirmation?: string
+}
+
+export const updateProfile = async (token: string, payload: UpdateProfilePayload) => {
+  const res = await api.patch('/profile', payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return res.data
+}
